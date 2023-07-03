@@ -315,6 +315,7 @@ def init_logger(app_name: str):
         return record
 
     logging.setLogRecordFactory(new_factory)
+
     logger = logging.getLogger()
     logdir = path.LocalPath(context.IBRIDGES_DIR).expanduser()
     if not logdir.is_dir():

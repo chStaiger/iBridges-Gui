@@ -15,10 +15,9 @@ class Session:
     """Irods session authentication.
 
     """
-    _irods_session = None
     context = utils.context.Context()
 
-    def __init__(self, password=''):
+    def __init__(self, password = ''):
         """ iRODS authentication with Python client.
 
         Parameters
@@ -26,73 +25,12 @@ class Session:
         password : str
             Plain text password.
 
-        The 'password' property can autoload from its cache, but can be
-        overridden by `password` argument.  The iRODS authentication
-        file is expected in the standard location (~/.irods/.irodsA) or
-        to be specified in the local environment with the
-        IRODS_AUTHENTICATION_FILE variable.
-
         """
         self._password = password
+        self._irods_session = None
 
     def __del__(self):
         del self.irods_session
-
-    # Configuration properties
-    #
-    @property
-    def conf(self) -> dict:
-        """iBridges configuration dictionary.
-
-        Returns
-        -------
-        dict
-            Configuration from JSON serialized string.
-
-        """
-        logging.debug('getting: self.context.ibridges_configuration')
-        return self.context.ibridges_configuration.config
-
-    @property
-    def ienv(self) -> dict:
-        """iRODS environment dictionary.
-
-        Returns
-        -------
-        dict
-            Environment from JSON serialized string.
-        """
-        logging.debug('getting: self.context.irods_environment')
-        return self.context.irods_environment.config
-
-    # Authentication workflow properties
-    #
-    @property
-    def password(self) -> str:
-        """iRODS password.
-
-        Returns
-        -------
-        str
-            iRODS password pre-set or decoded from iRODS authentication
-            file. Can be a PAM negotiated password.
-
-        """
-        if not self._password:
-            self._password = get_cached_password()
-        return self._password
-
-    @password.setter
-    def password(self, password: str):
-        """iRODS password setter method.
-
-        Parameters
-        -----------
-        password: str
-            Unencrypted iRODS password.
-
-        """
-        self._password = password
 
     @property
     def irods_session(self) -> irods.session.iRODSSession:
@@ -104,9 +42,7 @@ class Session:
             iRODS connection based on the current environment and password.
 
         """
-        if self.has_valid_irods_session():
-            return self._irods_session
-        return None
+        return self._irods_session
 
     @irods_session.deleter
     def irods_session(self):
@@ -123,17 +59,6 @@ class Session:
 
     # Authentication workflow methods
     #
-    def has_irods_session(self) -> bool:
-        """Check if an iRODS session has been assigned to its shadow
-        variable.
-
-        Returns
-        -------
-        bool
-            Has a session been set?
-
-        """
-        return isinstance(self._irods_session, irods.session.iRODSSession)
 
     def has_valid_irods_session(self) -> bool:
         """Check if the iRODS session is valid.
@@ -144,92 +69,56 @@ class Session:
             Is the session valid?
 
         """
-        return self.has_irods_session() and self._irods_session.server_version != ()
+        return self.server_version != ()
 
     def connect(self):
         """Establish an iRODS session.
 
         """
-        logging.debug(
-            'self.context.irods_env_file=%s', self.context.irods_env_file)
-        options = {
-            'irods_env_file': self.context.irods_env_file,
-        }
-        if self.ienv:
-            options.update(self.ienv)
-        else:
-            raise RuntimeError('The iRODS environment is empty!')
-        given_pass = self.password
-        cached_pass = get_cached_password()
-        if given_pass != cached_pass:
-            options['password'] = given_pass
-        self._irods_session = self._get_irods_session(options)
-        # If session exists, it is validated.
-        if self._irods_session:
-            if given_pass != cached_pass:
-                self._write_pam_password()
-            logging.info(
-                'IRODS LOGIN SUCCESS: %s:%s', self._irods_session.host,
-                self._irods_session.port)
-
-    @staticmethod
-    def _get_irods_session(options):
-        """Run through different types of authentication methods and
-        instantiate an iRODS session.
-
-        Parameters
-        ----------
-        options : dict
-            Initial iRODS settings for the session.
-
-        Returns
-        -------
-        iRODSSession
-            iRODS connection based on given environment and password.
-
-        """
-        irods_env_file = options.pop('irods_env_file')
-        if 'password' not in options:
-            if not irods_env_file:
-                raise FileNotFoundError('iRODS environment filename not set')
+        user = self.context.irods_environment.config.get('irods_user_name', '')
+        if user == 'anonymous':
             try:
+                # TODO: implement and test for SSL enabled iRODS
+                logging.debug('iRODS LOGIN of anonymous user')
+                # self._irods_session = iRODSSession(user='anonymous',
+                #                        password='',
+                #                        zone=zone,
+                #                        port=1247,
+                #                        host=host)
+                assert False
+            except Exception as e:
+                logging.error('Anonymous LOGIN FAILED: %s', 'Not implemented')
+                return {'successful': False, 'reason': 'Not implemented'} 
+        else: # authentication with irods environment and password
+            if self._password == '':
+                print("Auth without password")
+                # use cached password of .irodsA built into prc
                 logging.info('AUTH FILE SESSION')
-                session = irods.session.iRODSSession(
-                    irods_env_file=irods_env_file)
-                _ = session.server_version
-                return session
-            except TypeError as error:
-                logging.error('AUTH FILE LOGIN FAILED')
-                raise error
-            except Exception as error:
-                logging.error('AUTH FILE LOGIN FAILED: %r', error)
-                raise error
-        else:
-            password = options.pop('password')
-            try:
+                try:
+                    self._irods_session = irods.session.iRODSSession(
+                            irods_env_file=self.context.irods_env_file)
+                    assert self._irods_session.server_version != ()
+                    logging.info('IRODS LOGIN SUCCESS: %s:%s', 
+                                 self._irods_session.host, self._irods_session.port)
+                    return {'successful': True}
+                except Exception as e:
+                    logging.error('AUTH FILE LOGIN FAILED')
+                    logging.error('Have you set the iRODS environment file correctly?')
+                    return {'successful': False, 'reason': repr(e)}
+            else:
+                print("Auth with password")
+                # irods environment and given password
                 logging.info('FULL ENVIRONMENT SESSION')
-                session = irods.session.iRODSSession(password=password, **options)
-                _ = session.server_version
-                return session
-            except Exception as error:
-                logging.error('FULL ENVIRONMENT LOGIN FAILED: %r', error)
-                raise error
-
-    def _write_pam_password(self):
-        """Store the returned PAM/LDAP password in the iRODS
-        authentication file in obfuscated form.
-
-        """
-        connection = self._irods_session.pool.get_connection()
-        pam_passwords = self._irods_session.pam_pw_negotiated
-        if len(pam_passwords):
-            irods_auth_file = self._irods_session.get_irods_password_file()
-            with open(irods_auth_file, 'w', encoding='utf-8') as authfd:
-                authfd.write(
-                    irods.password_obfuscation.encode(pam_passwords[0]))
-        else:
-            logging.info('WARNING -- unable to cache obfuscated password locally')
-        connection.release()
+                try:
+                    self._irods_session = irods.session.iRODSSession(password=self._password, 
+                                                         **self.context.irods_environment.config)
+                    assert self._irods_session.server_version != ()
+                    logging.info('IRODS LOGIN SUCCESS: %s:%s', 
+                                 self._irods_session.host, self._irods_session.port)
+                    return {'successful': True}
+                except Exception as e:
+                    logging.error('FULL ENVIRONMENT LOGIN FAILED: %r', e)
+                    return {'successful': False, 'reason': repr(e)}
 
     # Introspection properties
     #
@@ -255,7 +144,9 @@ class Session:
             Resource name.
 
         """
-        return self.ienv.get('irods_default_resource', '')
+        if self._irods_session:
+            return self._irods_session.default_resource
+        return ''
 
     @property
     def host(self) -> str:
@@ -267,7 +158,9 @@ class Session:
             Hostname.
 
         """
-        return self.ienv.get('irods_host', '')
+        if self._irods_session:
+            return self._irods_session.host
+        return ''
 
     @property
     def port(self) -> str:
@@ -279,7 +172,9 @@ class Session:
             Port.
 
         """
-        return str(self.ienv.get('irods_port', ''))
+        if self._irods_session:
+            return self._irods_session.port
+        return ''
 
     @property
     def server_version(self) -> tuple:
@@ -291,9 +186,10 @@ class Session:
             Server version: (major, minor, patch).
 
         """
-        if self.has_irods_session():
-            return self.irods_session.server_version
-        return ()
+        try:
+            return self._irods_session.server_version
+        except:
+            return ()
 
     @property
     def username(self) -> str:
@@ -305,7 +201,9 @@ class Session:
             Username.
 
         """
-        return self.ienv.get('irods_user_name', '')
+        if self._irods_session:
+            return self._irods_session.username
+        return ''
 
     @property
     def zone(self) -> str:
@@ -317,25 +215,6 @@ class Session:
             Zone.
 
         """
-        return self.ienv.get('irods_zone_name', '')
-
-
-def get_cached_password() -> str:
-    """Scrape the cached password from the iRODS authentication file,
-    if it exists.
-
-    Returns
-    -------
-    str
-        Cached password or null string.
-
-    """
-    irods_auth_file = os.environ.get(
-        'IRODS_AUTHENTICATION_FILE', None)
-    if irods_auth_file is None:
-        irods_auth_file = utils.path.LocalPath(
-            utils.context.IRODS_DIR, '.irodsA').expanduser()
-    if irods_auth_file.exists():
-        with open(irods_auth_file, encoding='utf-8') as authfd:
-            return irods.password_obfuscation.decode(authfd.read())
-    return ''
+        if self._irods_session:
+            return self._irods_session.zone
+        return ''

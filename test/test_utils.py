@@ -7,6 +7,8 @@ import tempfile
 import pytest
 
 import utils
+from irods import password_obfuscation
+import ibridgesConnector.authentication
 
 TEMP_DIR = tempfile.mkdtemp()
 
@@ -168,6 +170,26 @@ def test_get_working_dir():
     """
     pass
 
+def test_get_cached_pw(tmp_path):
+    random = password_obfuscation.encode("blablabla")
+    f = tmp_path.joinpath('.irodsA')
+    with open(f, 'w') as tmpw:
+        tmpw.write(random)
+    os.environ['IRODS_AUTHENTICATION_FILE'] = str(f)
+    assert ibridgesConnector.authentication.get_cached_password() == "blablabla" 
+
+def test_authentication():
+    """Check that the executable directory is correctly identified.
+
+    """
+    random = password_obfuscation.encode("blablabla")
+    f = tmp_path.joinpath('.irodsA')
+    with open(f, 'w') as tmpw:
+        tmpw.write(random)
+    os.environ['IRODS_AUTHENTICATION_FILE'] = str(f)
+    result = ibridgesConnector.authentication.authenticate("blabla")
+    assert result['successful'] == False
+    # TODO: mockup environment
 
 def test_bytes_to_str():
     """Test the conversion of the number of bytes to a string with

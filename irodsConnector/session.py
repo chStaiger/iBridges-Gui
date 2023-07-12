@@ -17,7 +17,7 @@ class Session:
     """
     context = utils.context.Context()
 
-    def __init__(self, password = ''):
+    def __init__(self, password=''):
         """ iRODS authentication with Python client.
 
         Parameters
@@ -88,38 +88,43 @@ class Session:
                 assert False
             except Exception as e:
                 logging.error('Anonymous LOGIN FAILED: %s', 'Not implemented')
-                return {'successful': False, 'reason': 'Not implemented'} 
-        else: # authentication with irods environment and password
+                return {'successful': False, 'reason': 'Not implemented'}
+        else:  # authentication with irods environment and password
             if self._password == '':
                 print("Auth without password")
                 # use cached password of .irodsA built into prc
-                logging.info('AUTH FILE SESSION')
-                try:
-                    self._irods_session = irods.session.iRODSSession(
-                            irods_env_file=self.context.irods_env_file)
-                    assert self._irods_session.server_version != ()
-                    logging.info('IRODS LOGIN SUCCESS: %s:%s', 
-                                 self._irods_session.host, self._irods_session.port)
-                    return {'successful': True}
-                except Exception as e:
-                    logging.error('AUTH FILE LOGIN FAILED')
-                    logging.error('Have you set the iRODS environment file correctly?')
-                    return {'successful': False, 'reason': repr(e)}
+                return self.authenticate_using_auth_file()
             else:
                 print("Auth with password")
                 # irods environment and given password
                 logging.info('FULL ENVIRONMENT SESSION')
-                try:
-                    self._irods_session = irods.session.iRODSSession(password=self._password, 
-                                                         **self.context.irods_environment.config)
-                    assert self._irods_session.server_version != ()
-                    logging.info('IRODS LOGIN SUCCESS: %s:%s', 
-                                 self._irods_session.host, self._irods_session.port)
-                    self._write_pam_password()
-                    return {'successful': True}
-                except Exception as e:
-                    logging.error('FULL ENVIRONMENT LOGIN FAILED: %r', e)
-                    return {'successful': False, 'reason': repr(e)}
+                return self.authenticate_using_password()
+
+    def authenticate_using_password(self):
+        try:
+            self._irods_session = irods.session.iRODSSession(password=self._password,
+                                                             **self.context.irods_environment.config)
+            assert self._irods_session.server_version != ()
+            logging.info('IRODS LOGIN SUCCESS: %s:%s',
+                         self._irods_session.host, self._irods_session.port)
+            self._write_pam_password()
+            return {'successful': True}
+        except Exception as e:
+            logging.error('FULL ENVIRONMENT LOGIN FAILED: %r', e)
+            return {'successful': False, 'reason': repr(e)}
+
+    def authenticate_using_auth_file(self):
+        logging.info('AUTH FILE SESSION')
+        try:
+            self._irods_session = irods.session.iRODSSession(irods_env_file=self.context.irods_env_file)
+            assert self._irods_session.server_version != ()
+            logging.info('IRODS LOGIN SUCCESS: %s:%s',
+                         self._irods_session.host, self._irods_session.port)
+            return {'successful': True}
+        except Exception as e:
+            logging.error('AUTH FILE LOGIN FAILED')
+            logging.error('Have you set the iRODS environment file correctly?')
+            return {'successful': False, 'reason': repr(e)}
 
     # Introspection properties
     #
@@ -219,7 +224,6 @@ class Session:
         if self._irods_session:
             return self._irods_session.zone
         return ''
-
 
     def _write_pam_password(self):
         """Store the password in the iRODS

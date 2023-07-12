@@ -7,8 +7,11 @@ import tempfile
 import pytest
 
 import utils
-from irods import password_obfuscation
 import ibridgesConnector.authentication
+import irodsConnector
+from irods import password_obfuscation
+from unittest.mock import MagicMock, Mock, patch
+from pytest import raises
 
 TEMP_DIR = tempfile.mkdtemp()
 
@@ -178,7 +181,7 @@ def test_get_cached_pw(tmp_path):
     os.environ['IRODS_AUTHENTICATION_FILE'] = str(f)
     assert ibridgesConnector.authentication.get_cached_password() == "blablabla" 
 
-def test_authentication():
+def test_authentication(tmp_path):
     """Check that the executable directory is correctly identified.
 
     """
@@ -190,6 +193,35 @@ def test_authentication():
     result = ibridgesConnector.authentication.authenticate("blabla")
     assert result['successful'] == False
     # TODO: mockup environment
+
+def test_authentication_uses_password_parameter(tmp_path):
+    """Validates that the provided password is used (cached-passwd != password) """
+    random = password_obfuscation.encode("blablabla")
+    f = tmp_path.joinpath('.irodsA')
+    with open(f, 'w') as tmpw:
+        tmpw.write(random)
+    os.environ['IRODS_AUTHENTICATION_FILE'] = str(f)
+    #patch allows me to return a MagickMock() instead of a irodsConnector.session.Session
+    with patch.object(irodsConnector.session.Session, '__new__', return_value=MagicMock()) as my_mock:
+        result = ibridgesConnector.authentication.authenticate("blabla")
+    #Constructor
+    my_mock.assert_called_with(irodsConnector.session.Session, password='blabla')
+    my_mock.return_value.connect.assert_called_once()
+
+def test_authentication_uses_auth_file(tmp_path):
+    """Validates that  .irodsA file is used when (cached-passwd == password)"""
+    password = "blablabla"
+    random = password_obfuscation.encode(password)
+    f = tmp_path.joinpath('.irodsA')
+    with open(f, 'w') as tmpw:
+        tmpw.write(random)
+    os.environ['IRODS_AUTHENTICATION_FILE'] = str(f)
+
+    with patch.object(irodsConnector.session.Session, '__new__', return_value=MagicMock()) as my_mock:
+        result = ibridgesConnector.authentication.authenticate(password)
+    #Constructor call without arguments
+    my_mock.assert_called_with(irodsConnector.session.Session)
+    my_mock.return_value.connect.assert_called_once()
 
 def test_bytes_to_str():
     """Test the conversion of the number of bytes to a string with

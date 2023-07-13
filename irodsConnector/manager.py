@@ -268,7 +268,7 @@ class IrodsConnector:
             self.session.connect()
 
     def cleanup(self):
-        if self.has_session() and self.session.has_irods_session():
+        if self.has_session() and self.session.has_valid_irods_session():
             # In case the iRODS session is not fully there.
             try:
                 self.session.irods_session.cleanup()
@@ -302,36 +302,33 @@ class IrodsConnector:
     def host(self) -> str:
         return self.session.host
 
-    #@property
-    #def password(self) -> str:
-    #    """Password scraped from iRODS obfuscated auth file or manually
-    #    set.
+    @property
+    def password(self) -> str:
+        """Password scraped from iRODS obfuscated auth file or manually
+        set.
 
-    #    Returns
-    #    -------
-    #    str
-    #        Plain text password.
+        Returns
+        -------
+        str
+            Plain text password.
 
-    #    """
-    #    return self.session.password
+        """
+        return self._password
 
-    #@password.setter
-    #def password(self, password: str):
-    #    """Set the session password.
+    @password.setter
+    def password(self, password: str):
+        """Set the session password.
 
-    #    This method is _vital_ for updating the session password _after_
-    #    Session instantiation.
+        This method is _vital_ for updating the session password _after_
+        Session instantiation.
 
-    #    Parameters
-    #    ----------
-    #    password : str
-    #        Plain text password.
+        Parameters
+        ----------
+        password : str
+            Plain text password.
 
-     #   """
-     #   self.session.password = password
-     #   # This is purely cosmetic.  This variable is used only once
-     #   # when instantiating the Session (a.k.a. self.session).
-     #   self._password = password
+         """
+        self._password = password
 
     @property
     def port(self) -> str:

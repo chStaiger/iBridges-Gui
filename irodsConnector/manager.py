@@ -264,7 +264,7 @@ class IrodsConnector:
         """Manually establish an iRODS session.
 
         """
-        if not self.session.has_irods_session():
+        if not self.session.has_valid_irods_session():
             self.session.connect()
 
     def cleanup(self):
@@ -274,18 +274,6 @@ class IrodsConnector:
                 self.session.irods_session.cleanup()
             except NameError:
                 pass
-
-    @staticmethod
-    def get_cached_password() -> str:
-        """Acquire the cached password from the iRODS auth file.
-
-        Returns
-        -------
-        str
-            Cached password or null string.
-
-        """
-        return session.get_cached_password()
 
     def has_session(self) -> bool:
         """Check if an iBridges session has been assigned to its shadow
@@ -314,36 +302,36 @@ class IrodsConnector:
     def host(self) -> str:
         return self.session.host
 
-    @property
-    def password(self) -> str:
-        """Password scraped from iRODS obfuscated auth file or manually
-        set.
+    #@property
+    #def password(self) -> str:
+    #    """Password scraped from iRODS obfuscated auth file or manually
+    #    set.
 
-        Returns
-        -------
-        str
-            Plain text password.
+    #    Returns
+    #    -------
+    #    str
+    #        Plain text password.
 
-        """
-        return self.session.password
+    #    """
+    #    return self.session.password
 
-    @password.setter
-    def password(self, password: str):
-        """Set the session password.
+    #@password.setter
+    #def password(self, password: str):
+    #    """Set the session password.
 
-        This method is _vital_ for updating the session password _after_
-        Session instantiation.
+    #    This method is _vital_ for updating the session password _after_
+    #    Session instantiation.
 
-        Parameters
-        ----------
-        password : str
-            Plain text password.
+    #    Parameters
+    #    ----------
+    #    password : str
+    #        Plain text password.
 
-        """
-        self.session.password = password
-        # This is purely cosmetic.  This variable is used only once
-        # when instantiating the Session (a.k.a. self.session).
-        self._password = password
+     #   """
+     #   self.session.password = password
+     #   # This is purely cosmetic.  This variable is used only once
+     #   # when instantiating the Session (a.k.a. self.session).
+     #   self._password = password
 
     @property
     def port(self) -> str:

@@ -138,7 +138,7 @@ class Session:
             URL of the configured DavRODS server.
 
         """
-        return self.conf.get('davrods_server', '')
+        return self.context.ibridges_configuration.config.get('davrods_server', '')
 
     @property
     def default_resc(self) -> str:

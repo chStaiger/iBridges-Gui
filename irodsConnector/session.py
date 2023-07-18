@@ -1,7 +1,6 @@
 """ session operations
 """
 import logging
-import os
 
 import irods.connection
 import irods.exception
@@ -86,7 +85,7 @@ class Session:
                 #                        port=1247,
                 #                        host=host)
                 assert False
-            except Exception as e:
+            except Exception:
                 logging.error('Anonymous LOGIN FAILED: %s', 'Not implemented')
                 return {'successful': False, 'reason': 'Not implemented'}
         else:  # authentication with irods environment and password
@@ -194,7 +193,7 @@ class Session:
         """
         try:
             return self._irods_session.server_version
-        except:
+        except Exception:
             return ()
 
     @property

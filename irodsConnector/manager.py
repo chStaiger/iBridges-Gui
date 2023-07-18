@@ -234,9 +234,8 @@ class IrodsConnector:
 
     # Resource functionality
     #
-    @property
-    def resources(self) -> dict:
-        return self.resource.resources
+    def resources(self, update = False) -> dict:
+        return self.resource.resources()
 
     def get_free_space(self, resc_name: str, multiplier: int = 1) -> int:
         return self.resource.get_free_space(resc_name, multiplier)
@@ -246,12 +245,10 @@ class IrodsConnector:
 
     def get_resource_children(self, resc: irods.resource.iRODSResource) -> list:
         return self.resource.get_resource_children(resc)
-
-    def list_resources(self, attr_names: list = None) -> tuple:
-        return self.resource.list_resources(attr_names)
-
-    def resource_space(self, resc_name: str) -> int:
-        return self.resource.resource_space(resc_name)
+    
+    @property
+    def root_resources(self) -> list:
+        return self.resource.root_resources
 
     # Rules functionality
     #

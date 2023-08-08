@@ -223,6 +223,35 @@ class DataOperation(object):
             return self.sess_man.irods_session.collections.get(path)
         raise irods.exception.CollectionDoesNotExist(path)
 
+    def item_move(self, item: (irods.collection.iRODSCollection, irods.data_object.iRODSDataObject), new_path: str):
+        """Rename or move an irods object or collection
+
+        Parameters
+        ----------
+        item:(irods.collection.iRODSCollection, irods.data    _object.iRODSDataObject)
+            irods data object or irods collection
+        new_path: str
+            Path to which the collection or object should be moved to
+        """
+        logging.info('IRODS RENAME ITEM: %s-->%s', item.path, new_path)
+        if self.is_collection(item):
+            try:
+                item.move(new_path)
+                return {"successful": True}
+            except Exception as e:
+                logging.error(repr(e))
+                return {"successful": False, "reason": repr(e)}
+        elif self.is_dataobject(item):
+            try:
+                self.sess_man.irods_session.data_objects.move(item.path, new_path)
+                return {"successful": True}
+            except Exception as e:
+                logging.error(repr(e))
+                return {"successful": False, "reason": repr(e)}
+        else:
+            logging.error("RENAME ERROR: Item is not a dataobject or collection")
+            return {"succesful": False, "reason": "Item is not a dataobject or collection"}
+
     def irods_put(self, local_path: str, irods_path: str, resc_name: str = ''):
         """Upload `local_path` to `irods_path` following iRODS `options`.
 

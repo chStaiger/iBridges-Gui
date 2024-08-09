@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from ibridges import IrodsPath, Session, download, search_data, sync, upload
-from ibridges.executor import Operations
+from ibridges import Session, search_data, sync
+from ibridges.executor import Operations, _obj_get, _obj_put
 from irods.exception import CAT_NO_ACCESS_PERMISSION, NetworkException
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -49,7 +49,7 @@ class TransferDataThread(QThread):
     """Transfer data between local and iRODS."""
 
     succeeded = pyqtSignal(dict)
-    current_progress = pyqtSignal(str)
+    current_progress = pyqtSignal(list)
 
     def __init__(self, ienv_path: Path, logger, ops: Operations, overwrite: bool):
         """Pass parameters.
@@ -71,6 +71,9 @@ class TransferDataThread(QThread):
         self.ops = ops
         self.overwrite = overwrite
 
+        self.up_sizes = sum(lpath.stat().st_size for lpath, _ in self.ops.upload)
+        self.down_sizes = sum(ipath.size for ipath, _ in self.ops.download)
+
     def _delete_session(self):
         self.thread_session.close()
         if self.thread_session.irods_session is None:
@@ -86,45 +89,22 @@ class TransferDataThread(QThread):
         file_failed = 0
         transfer_out = {}
         transfer_out["error"] = ""
+        transferred_size = 0
 
-        emit_string = "Create collections."
-        for coll in self.ops.create_collection:
-            try:
-                IrodsPath.create_collection(self.thread_session, coll)
-                self.logger.info("Transfer data thread: Created collection %s", coll)
-            except Exception as error:
-                self.logger.exception(
-                    "Transfer data thread: Could not create  %s; %s", coll, repr(error)
-                )
-                transfer_out["error"] = (
-                    transfer_out["error"] + f"\nTransfer failed Cannot create {coll}: {repr(error)}"
-                )
-
-        emit_string = "Create folders."
-        for folder in self.ops.create_dir:
-            print(f"create {folder}")
-            try:
-                Path(folder).mkdir(parents=True, exist_ok=True)
-                self.logger.info("Transfer data thread: Created folder %s", folder)
-            except Exception as error:
-                self.logger.exception(
-                    "Transfer data thread: Could not create  %s; %s", folder, repr(error)
-                )
-                transfer_out["error"] = (
-                    transfer_out["error"]
-                    + f"\nTransfer failed Cannot create {folder}: {repr(error)}"
-                )
+        self.ops.execute_create_coll(self.thread_session)
+        self.ops.execute_create_dir()
 
         for local_path, irods_path in self.ops.upload:
             try:
-                upload(
+                _obj_put(
                     self.thread_session,
                     local_path,
                     irods_path,
-                    resc_name=self.ops.resc_name,
                     overwrite=self.overwrite,
                     options=self.ops.options,
+                    resc_name=self.ops.resc_name,
                 )
+                transferred_size += local_path.stat().st_size
                 obj_count += 1
                 self.logger.info(
                     "Transfer data thread: Transfer %s -->  %s, overwrite %s",
@@ -144,21 +124,26 @@ class TransferDataThread(QThread):
                     transfer_out["error"]
                     + f"\nTransfer failed, cannot upload {str(local_path)}: {repr(error)}"
                 )
-            emit_string = f"{obj_count} of {len(self.ops.upload)} files"
-            emit_string += f" transferred, failed: {obj_failed}."
-            self.current_progress.emit(emit_string)
+            self.current_progress.emit([self.up_sizes,
+                                        transferred_size,
+                                        obj_count,
+                                        len(self.ops.upload),
+                                        obj_failed])
 
+
+        transferred_size = 0
         for irods_path, local_path in self.ops.download:
             try:
-                download(
+                _obj_get(
                     self.thread_session,
                     irods_path,
                     local_path,
-                    resc_name=self.ops.resc_name,
                     overwrite=self.overwrite,
+                    resc_name=self.ops.resc_name,
                     options=self.ops.options,
                 )
                 file_count += 1
+                transferred_size += irods_path.size
                 self.logger.info(
                     "Transfer data thread: Transfer %s -->  %s, overwrite %s",
                     irods_path,
@@ -177,9 +162,11 @@ class TransferDataThread(QThread):
                     transfer_out["error"]
                     + f"\nTransfer failed, cannot download {str(irods_path)}: {repr(error)}"
                 )
-            emit_string = f"{file_count} of {len(self.ops.download)} data objects"
-            emit_string += f" transferred, failed: {file_failed}."
-            self.current_progress.emit(emit_string)
+            self.current_progress.emit([self.down_sizes,
+                                       transferred_size,
+                                       file_count,
+                                       len(self.ops.download),
+                                       file_failed])
 
         self.ops.execute_meta_download()
         self._delete_session()
